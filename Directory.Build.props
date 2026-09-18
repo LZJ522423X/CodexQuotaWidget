@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <RuntimeFrameworkVersion>10.0.12</RuntimeFrameworkVersion>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

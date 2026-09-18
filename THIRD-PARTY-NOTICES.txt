@@ -1,0 +1,12 @@
+Codex Quota Widget 1.0.0
+
+Microsoft .NET / WPF / Windows Forms 10.0.12
+MIT license. https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+https://github.com/dotnet/wpf/blob/main/LICENSE.TXT
+https://github.com/dotnet/winforms/blob/main/LICENSE.TXT
+Redistributed self-contained runtime includes Microsoft's license and third-party notices.
+
+Official Codex CLI is discovered locally and is not redistributed.
+https://github.com/openai/codex (Apache-2.0)
+
+No external UI library or third-party NuGet package is used in P2.

@@ -1,0 +1,39 @@
+# Build output and IDE state
+[Bb]in/
+[Oo]bj/
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Generated diagnostics, logs, caches and local state
+logs/
+cache/
+checks/
+backups/
+settings.json
+settings.json.bak
+*.log
+*.tmp
+*.sqlite
+*.sqlite-*
+*.db
+
+# Independent Codex authentication and local environment files
+codex-home/
+auth.json
+.env
+.env.*
+
+# Distribution artifacts and signing material
+release/
+artifacts/
+publish/
+*.exe
+*.zip
+*.pdb
+*.pfx
+*.snk
+*.nupkg
