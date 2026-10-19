@@ -37,3 +37,10 @@ publish/
 *.pfx
 *.snk
 *.nupkg
+
+# Local source registries and machine-only acceptance state
+tools/SkillUpdater/config/
+tools/SkillUpdater/temp/
+**/provenance.json
+**/latest-result.json
+*.dpapi

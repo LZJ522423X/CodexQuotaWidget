@@ -8,6 +8,8 @@ public sealed record QuotaWindow(string LimitId, string Name, string Slot, doubl
     public double? Remaining => UsedPercent is { } n ? Math.Clamp(100 - n, 0, 100) : null;
 }
 public sealed record QuotaSnapshot(DateTimeOffset UpdatedAt, string Plan, List<QuotaWindow> Windows, bool ResetCreditsProvided, int? AvailableCount, List<long> CreditExpirations);
+public enum ResetCreditOutcome { Reset, AlreadyRedeemed, NothingToReset, NoCredit, Unavailable, Busy, Unknown }
+public sealed record ResetCreditAttempt(ResetCreditOutcome Outcome, bool QuotaRefreshed);
 public sealed class ProtocolException(string field) : Exception("Missing or invalid field: " + field);
 public static class QuotaParser
 {
@@ -16,6 +18,14 @@ public static class QuotaParser
     public static double? Number(JsonElement e, string name) => Get(e,name) is { ValueKind: JsonValueKind.Number } v && v.TryGetDouble(out var n) && double.IsFinite(n) ? n : null;
     public static long? Timestamp(JsonElement e, string name) => Get(e,name) is { ValueKind: JsonValueKind.Number } v && v.TryGetInt64(out var n) && n >= 0 && n <= 253402300799 ? n : null;
     public static string Label(string? value, string fallback = "Unknown") => value is not null && Regex.IsMatch(value, @"^[\p{L}\p{N} _./()\-]{1,100}$") ? value : fallback;
+    public static ResetCreditOutcome ParseResetOutcome(JsonElement result) => String(result,"outcome") switch
+    {
+        "reset" => ResetCreditOutcome.Reset,
+        "alreadyRedeemed" => ResetCreditOutcome.AlreadyRedeemed,
+        "nothingToReset" => ResetCreditOutcome.NothingToReset,
+        "noCredit" => ResetCreditOutcome.NoCredit,
+        _ => throw new ProtocolException("rateLimitResetCredit.consume.outcome")
+    };
     public static QuotaSnapshot Parse(JsonElement result, string plan)
     {
         var windows = new List<QuotaWindow>();

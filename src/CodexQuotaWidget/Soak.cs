@@ -19,7 +19,7 @@ public static class Soak
                 using var p=Process.GetCurrentProcess();p.Refresh();long? childMemory=null;int? childHandles=null;
                 if(monitor.ServerPid is { } id)try{using var c=Process.GetProcessById(id);childMemory=c.WorkingSet64;childHandles=c.HandleCount;}catch(ArgumentException){}
                 samples.Add(new{Time=DateTimeOffset.UtcNow,MemoryBytes=p.WorkingSet64,PrivateBytes=p.PrivateMemorySize64,CpuSeconds=p.TotalProcessorTime.TotalSeconds,Handles=p.HandleCount,ServerPid=monitor.ServerPid,ServerMemoryBytes=childMemory,ServerHandles=childHandles,monitor.SuccessCount,Status=monitor.Status.ToString()});
-                AtomicStore.Write(Path.Combine(Paths.Data,"checks","soak.json"),new{Version="1.0.0",Began=began,Minutes=minutes,Completed=i==minutes,monitor.CliPath,monitor.CliVersion,monitor.ServerVersion,Runtime=Environment.Version.ToString(),Samples=samples});
+                AtomicStore.Write(Path.Combine(Paths.Data,"checks","soak.json"),new{Version=ReleaseUpdates.CurrentLabel,Began=began,Minutes=minutes,Completed=i==minutes,monitor.CliPath,monitor.CliVersion,monitor.ServerVersion,Runtime=Environment.Version.ToString(),Samples=samples});
                 if(i<minutes)await Task.Delay(TimeSpan.FromMinutes(1));
             }
         }

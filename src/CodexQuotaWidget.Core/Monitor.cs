@@ -32,6 +32,8 @@ public sealed class QuotaMonitor : IAsyncDisposable
     public long SuccessCount {get;private set;}
     public bool IsBusy {get;private set;}
     public bool IsStale => Snapshot is not null && (Status!=MonitorStatus.Live || DateTimeOffset.UtcNow-Snapshot.UpdatedAt>TimeSpan.FromSeconds(Settings.RefreshSeconds*2+15));
+    public bool ResetResultUnknown {get;private set;}
+    public bool CanConsumeResetCredit => Status==MonitorStatus.Live && !IsStale && Snapshot?.AvailableCount is >0 && !IsBusy && !ResetResultUnknown;
     public event Action? Changed;
     public QuotaMonitor(Settings settings,Func<bool>? detector=null,Func<bool>? network=null)
     {
@@ -65,19 +67,64 @@ public sealed class QuotaMonitor : IAsyncDisposable
         catch(Exception e) { Handle(e); await StopServer(); }
         finally { gate.Release(); }
     }
-    public async Task RefreshAsync()
+    public Task RefreshAsync()=>RefreshRequestedAsync(false);
+    public Task RefreshForSafetyAsync()=>RefreshRequestedAsync(true);
+    async Task RefreshRequestedAsync(bool safety)
     {
         if(!await gate.WaitAsync(0))return;
         try
         {
             if(suspended || lifetime.IsCancellationRequested)return;
             if(Settings.FollowCodex && !CheckDesktop(true)){await StopServer();Publish(MonitorStatus.DesktopClosed);return;}
-            wasRunning=true;ManualRefreshCount++;
+            wasRunning=true;if(safety)AutomaticRefreshCount++;else ManualRefreshCount++;
             blocked=false;
             await RefreshCore();
         }
         catch(Exception e){Handle(e);await StopServer();}
         finally{gate.Release();}
+    }
+    public async Task<ResetCreditAttempt> ConsumeResetCreditAsync()
+    {
+        if(!await gate.WaitAsync(0)) return new(ResetCreditOutcome.Busy,false);
+        bool requestStarted=false;
+        ResetCreditOutcome? outcome=null;
+        try
+        {
+            if(!CanConsumeResetCredit || suspended || lifetime.IsCancellationRequested)
+                return new(ResetCreditOutcome.Unavailable,false);
+            if(Settings.FollowCodex && !CheckDesktop(true))
+            {
+                await StopServer();Publish(MonitorStatus.DesktopClosed);
+                return new(ResetCreditOutcome.Unavailable,false);
+            }
+            if(!networkAvailable()){Publish(MonitorStatus.Offline);return new(ResetCreditOutcome.Unavailable,false);}
+            IsBusy=true;Changed?.Invoke();
+            await EnsureServer();
+            lastAttempt=DateTimeOffset.UtcNow;AttemptCount++;
+            var before=await server!.ReadQuota();
+            AcceptSnapshot(before);
+            if(before.AvailableCount is not >0) return new(ResetCreditOutcome.NoCredit,true);
+            SafeLog.Write(LogEvent.ResetRequested);
+            requestStarted=true;
+            outcome=await server.ConsumeResetCredit(Guid.NewGuid().ToString("D"));
+            SafeLog.Write(outcome is ResetCreditOutcome.Reset or ResetCreditOutcome.AlreadyRedeemed ? LogEvent.ResetSucceeded : LogEvent.ResetNotApplied);
+            lastAttempt=DateTimeOffset.UtcNow;AttemptCount++;
+            var after=await server.ReadQuota();
+            AcceptSnapshot(after);
+            return new(outcome.Value,true);
+        }
+        catch(Exception e)
+        {
+            if(requestStarted && outcome is null)
+            {
+                ResetResultUnknown=true;
+                SafeLog.Write(LogEvent.ResetResultUnknown);
+            }
+            Handle(e);
+            await StopServer();
+            return new(outcome ?? (requestStarted ? ResetCreditOutcome.Unknown : ResetCreditOutcome.Unavailable),false);
+        }
+        finally{IsBusy=false;Changed?.Invoke();gate.Release();}
     }
     async Task EnsureServer()
     {
@@ -92,13 +139,17 @@ public sealed class QuotaMonitor : IAsyncDisposable
         try
         {
             await EnsureServer();AttemptCount++;var snapshot=await server!.ReadQuota();
-            Snapshot=snapshot;SuccessCount++;failures=0;ErrorField=null;
-            nextRefresh=DateTimeOffset.UtcNow.AddSeconds(Settings.RefreshSeconds);
-            try{AtomicStore.Write(Path.Combine(Paths.Data,"cache","last-quota.json"),snapshot);}
-            catch(Exception e)when(e is IOException or UnauthorizedAccessException){SafeLog.Write(LogEvent.StorageFailure);}
-            SafeLog.Write(LogEvent.ReadSucceeded);Publish(MonitorStatus.Live);
+            AcceptSnapshot(snapshot);
         }
         finally{IsBusy=false;Changed?.Invoke();}
+    }
+    void AcceptSnapshot(QuotaSnapshot snapshot)
+    {
+        Snapshot=snapshot;SuccessCount++;failures=0;ErrorField=null;
+        nextRefresh=DateTimeOffset.UtcNow.AddSeconds(Settings.RefreshSeconds);
+        try{AtomicStore.Write(Path.Combine(Paths.Data,"cache","last-quota.json"),snapshot);}
+        catch(Exception e)when(e is IOException or UnauthorizedAccessException){SafeLog.Write(LogEvent.StorageFailure);}
+        SafeLog.Write(LogEvent.ReadSucceeded);Publish(MonitorStatus.Live);
     }
     void Handle(Exception e)
     {

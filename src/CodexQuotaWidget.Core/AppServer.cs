@@ -12,7 +12,10 @@ public sealed class AppServer : IAsyncDisposable
 {
     public static string DiscoveryIssue {get;private set;}="";
     readonly CancellationToken cancellation;
-    public AppServer(CancellationToken cancellation=default){this.cancellation=cancellation;}
+    readonly bool isolateOwnedJob;
+    // A quota/diagnostic reader must never reopen or clean up another instance's job.
+    // Each connection owns an unnamed kill-on-close job; disposal only affects its children.
+    public AppServer(CancellationToken cancellation=default, bool isolateOwnedJob=true){this.cancellation=cancellation;this.isolateOwnedJob=isolateOwnedJob;}
     readonly ConcurrentDictionary<int,TaskCompletionSource<JsonElement>> pending=new();
     readonly SemaphoreSlim writer=new(1,1);
     Process? process;
@@ -91,12 +94,12 @@ public sealed class AppServer : IAsyncDisposable
         foreach(var key in start.Environment.Keys.ToArray())
             if(key.StartsWith("CODEX_",StringComparison.OrdinalIgnoreCase) && key!="CODEX_HOME"
                 || key is "OPENAI_API_KEY" or "OPENAI_BASE_URL" or "OPENAI_ORG_ID" or "OPENAI_PROJECT_ID") start.Environment.Remove(key);
-        job=new ProcessJob(@"Local\CodexQuotaWidget.AppServer."+System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value); process=new Process{StartInfo=start};
+        job=new ProcessJob(isolateOwnedJob ? null : @"Local\CodexQuotaWidget.AppServer."+System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value); process=new Process{StartInfo=start};
         try
         {
             process.Start(); started=true; job.Assign(process);
             readerTask=ReadLoop(); stderrTask=DrainErrors();
-            var init=await Call("initialize",new{clientInfo=new{name="CodexQuotaWidget",version="1.0.0"},capabilities=new{}});
+            var init=await Call("initialize",new{clientInfo=new{name="CodexQuotaWidget",version=ReleaseUpdates.CurrentLabel},capabilities=new{}});
             ActualHome=QuotaParser.String(init,"codexHome") ?? throw new ProtocolException("initialize.codexHome");
             if(!Path.GetFullPath(ActualHome).TrimEnd('\\').Equals(Paths.Home,StringComparison.OrdinalIgnoreCase)) throw new ProtocolException("initialize.codexHome mismatch");
             var agent=QuotaParser.String(init,"userAgent");
@@ -113,8 +116,8 @@ public sealed class AppServer : IAsyncDisposable
     }
     public async Task<JsonElement> Call(string method,object? parameters=null)
     {
-        if(method is not ("initialize" or "account/read" or "account/rateLimits/read" or "account/login/start"))
-            throw new ArgumentException("RPC method not allowed by the read-only widget.",nameof(method));
+        if(method is not ("initialize" or "account/read" or "account/rateLimits/read" or "account/login/start" or "account/rateLimitResetCredit/consume"))
+            throw new ArgumentException("RPC method not allowed by the widget.",nameof(method));
         var id=Interlocked.Increment(ref sequence);
         var completion=new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         pending[id]=completion;
@@ -182,6 +185,12 @@ public sealed class AppServer : IAsyncDisposable
     {
         var plan=await ReadAccount();
         return QuotaParser.Parse(await Call("account/rateLimits/read"),plan);
+    }
+    public async Task<ResetCreditOutcome> ConsumeResetCredit(string idempotencyKey)
+    {
+        if(!Guid.TryParseExact(idempotencyKey,"D",out _)) throw new ArgumentException("A UUID idempotency key is required.",nameof(idempotencyKey));
+        var result=await Call("account/rateLimitResetCredit/consume",new{idempotencyKey});
+        return QuotaParser.ParseResetOutcome(result);
     }
     public async Task<bool> LoginAsync()
     {

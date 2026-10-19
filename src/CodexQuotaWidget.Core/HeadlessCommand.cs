@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace CodexQuotaWidget.Core;
 public sealed class CommandReport
 {
-    public string WidgetVersion {get;set;}="1.0.0";
+    public string WidgetVersion {get;set;}=ReleaseUpdates.CurrentLabel;
     public string Mode {get;set;}="";
     public string RequestedCodexHome {get;set;}=Paths.Home;
     public string? ActualCodexHome {get;set;}

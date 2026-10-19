@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <Version>1.13.9</Version><AssemblyName>CodexQuotaWidget.Executor</AssemblyName>
+    <!-- Keep the self-contained runtime next to the executor on D; never unpack a bundle in Explorer's C-drive TEMP. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier><PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>true</SelfContained><IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugSymbols>false</DebugSymbols><DebugType>none</DebugType>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../CodexQuotaWidget.Core/CodexQuotaWidget.Core.csproj"/></ItemGroup>
+</Project>

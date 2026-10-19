@@ -25,18 +25,40 @@ public sealed class Settings
     public int RefreshSeconds { get; set; } = 60;
     public bool FollowCodex { get; set; } = true;
     public bool AutoStart { get; set; }
+    // Windows startup registrations remain authoritative; this mirrors only the last saved choice.
+    public bool StartWithCodex { get; set; }
+    // Independent of startup registration and quota-refresh gating. Absent legacy values stay off.
+    public bool CloseWithCodex { get; set; }
+    public bool LowQuotaSafeFinishEnabled { get; set; }
+    public string? SafeFinishProjectPath { get; set; }
     public string? ManualCli { get; set; }
     public string Theme { get; set; } = "Dark";
     public string Accent { get; set; } = "Mint";
+    public string TextColor { get; set; } = "Auto";
+    public string WindowMode { get; set; } = "Full";
+    public bool EnableAnimations { get; set; } = true;
+    public double CapsuleStaySeconds { get; set; } = 1.5;
+    // Capsule placement is separate from the full window and uses physical desktop pixels.
+    public double? CapsuleCenterX { get; set; }
+    public double? CapsuleTopY { get; set; }
+    public string? CapsuleMonitorDevice { get; set; }
     public double? Left { get; set; }
     public double? Top { get; set; }
     public double Width { get; set; } = 440;
     public double Height { get; set; } = 610;
     public void Validate()
     {
+        // 1.4 deliberately retires the armed percentage-based shutdown option.
+        LowQuotaSafeFinishEnabled = false;
         if (RefreshSeconds is not (60 or 120 or 300)) RefreshSeconds = 60;
         if (Theme is not ("Dark" or "Light" or "System")) Theme = "Dark";
         if (Accent is not ("Mint" or "Blue" or "Violet")) Accent = "Mint";
+        if (TextColor is not ("Auto" or "Contrast" or "Accent")) TextColor = "Auto";
+        if (WindowMode is not ("Full" or "Capsule")) WindowMode = "Full";
+        CapsuleStaySeconds = double.IsFinite(CapsuleStaySeconds) ? Math.Clamp(CapsuleStaySeconds, .5, 30) : 1.5;
+        if (CapsuleCenterX is { } capsuleX && (!double.IsFinite(capsuleX) || capsuleX < int.MinValue || capsuleX > int.MaxValue)) CapsuleCenterX = null;
+        if (CapsuleTopY is { } capsuleY && (!double.IsFinite(capsuleY) || capsuleY < int.MinValue || capsuleY > int.MaxValue)) CapsuleTopY = null;
+        if (string.IsNullOrWhiteSpace(CapsuleMonitorDevice) || CapsuleMonitorDevice.Length > 128 || CapsuleMonitorDevice.Any(char.IsControl)) CapsuleMonitorDevice = null;
         Width = double.IsFinite(Width) ? Math.Clamp(Width,400,1200) : 440;
         Height = double.IsFinite(Height) ? Math.Clamp(Height,420,1600) : 610;
         if (Left is { } x && !double.IsFinite(x)) Left = null;
@@ -72,7 +94,7 @@ public static class AtomicStore
         }
     }
 }
-public enum LogEvent { Started, Stopped, ReadSucceeded, NetworkFailure, AuthenticationRequired, ProtocolFailure, StorageFailure, ServerStopped, ServerForcedStop, LoginStarted, LoginSucceeded, LoginFailed }
+public enum LogEvent { Started, Stopped, ReadSucceeded, NetworkFailure, AuthenticationRequired, ProtocolFailure, StorageFailure, ServerStopped, ServerForcedStop, LoginStarted, LoginSucceeded, LoginFailed, ResetRequested, ResetSucceeded, ResetNotApplied, ResetResultUnknown }
 public static class SafeLog
 {
     private static readonly object Gate = new();

@@ -5,4 +5,7 @@
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(EnableSiwcPhase2Acceptance)' == 'true'">
+    <DefineConstants>$(DefineConstants);SIWC_PHASE2_ACCEPTANCE</DefineConstants>
+  </PropertyGroup>
 </Project>

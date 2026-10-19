@@ -2,7 +2,7 @@
 <PropertyGroup>
 <OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework>
 <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable>
-<Version>1.0.0</Version><AssemblyName>CodexQuotaWidget</AssemblyName>
+<Version>1.13.9</Version><AssemblyName>CodexQuotaWidget</AssemblyName>
 <StartupObject>CodexQuotaWidget.Program</StartupObject>
 <ApplicationManifest>app.manifest</ApplicationManifest><RuntimeIdentifier>win-x64</RuntimeIdentifier>
 <PublishSingleFile>true</PublishSingleFile><SelfContained>true</SelfContained>
@@ -12,4 +12,9 @@
 <DebugSymbols>false</DebugSymbols><DebugType>none</DebugType>
 </PropertyGroup>
 <ItemGroup><ProjectReference Include="../CodexQuotaWidget.Core/CodexQuotaWidget.Core.csproj"/></ItemGroup>
+<ItemGroup>
+<Compile Include="../CodexQuotaWidget.Executor/WindowsPlatform.cs" Link="Automation/QuotaFinishWindowsPlatform.cs"/>
+<Compile Include="../CodexQuotaWidget.Executor/NativeSignature.cs" Link="Automation/QuotaFinishNativeSignature.cs"/>
+<Compile Include="../CodexQuotaWidget.StartupWatcher/DesktopIdentity.cs" Link="Startup/DesktopIdentity.cs"/>
+</ItemGroup>
 </Project>

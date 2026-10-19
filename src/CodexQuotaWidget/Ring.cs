@@ -2,15 +2,42 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace CodexQuotaWidget;
 public sealed class Ring : FrameworkElement
 {
     protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer()=>new System.Windows.Automation.Peers.FrameworkElementAutomationPeer(this);
-    public static readonly DependencyProperty ValueProperty=DependencyProperty.Register(nameof(Value),typeof(double?),typeof(Ring),new FrameworkPropertyMetadata(null,FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ValueProperty=DependencyProperty.Register(nameof(Value),typeof(double?),typeof(Ring),new FrameworkPropertyMetadata(null,FrameworkPropertyMetadataOptions.AffectsRender,OnValueChanged));
+    public static readonly DependencyProperty AnimatedValueProperty=DependencyProperty.Register(nameof(AnimatedValue),typeof(double),typeof(Ring),new FrameworkPropertyMetadata(0d,FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty PulseOpacityProperty=DependencyProperty.Register(nameof(PulseOpacity),typeof(double),typeof(Ring),new FrameworkPropertyMetadata(0d,FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty AccentProperty=DependencyProperty.Register(nameof(Accent),typeof(Brush),typeof(Ring),new FrameworkPropertyMetadata(Brushes.MediumSpringGreen,FrameworkPropertyMetadataOptions.AffectsRender));
     public double? Value{get=>(double?)GetValue(ValueProperty);set=>SetValue(ValueProperty,value);}
+    public double AnimatedValue{get=>(double)GetValue(AnimatedValueProperty);set=>SetValue(AnimatedValueProperty,value);}
+    public double PulseOpacity{get=>(double)GetValue(PulseOpacityProperty);set=>SetValue(PulseOpacityProperty,value);}
     public Brush Accent{get=>(Brush)GetValue(AccentProperty);set=>SetValue(AccentProperty,value);}
+    public bool EnableAnimations{get;set;}=true;
+    static void OnValueChanged(DependencyObject sender,DependencyPropertyChangedEventArgs e)
+    {
+        var ring=(Ring)sender;
+        AnimationHelper.AnimateRing(ring,(double?)e.OldValue,(double?)e.NewValue,ring.EnableAnimations);
+    }
+    public void PulseGlow()
+    {
+        if(!EnableAnimations)return;
+        BeginAnimation(PulseOpacityProperty,null);
+        var animation=new DoubleAnimationUsingKeyFrames
+        {
+            KeyFrames=
+            {
+                new LinearDoubleKeyFrame(0,KeyTime.FromTimeSpan(TimeSpan.Zero)),
+                new LinearDoubleKeyFrame(.8,KeyTime.FromTimeSpan(AnimationDurations.ResetPulsePeak)),
+                new LinearDoubleKeyFrame(0,KeyTime.FromTimeSpan(AnimationDurations.ResetPulse))
+            }
+        };
+        animation.Completed+=(_,_)=>{BeginAnimation(PulseOpacityProperty,null);PulseOpacity=0;};
+        BeginAnimation(PulseOpacityProperty,animation);
+    }
     public static string Health(double? value)=>value is null?"未提供":value<=10?"额度偏低":value<=25?"注意用量":"额度充足";
     protected override void OnRender(DrawingContext dc)
     {
@@ -20,7 +47,8 @@ public sealed class Ring : FrameworkElement
         var track=(Brush)FindResource("Line");
         dc.DrawEllipse(null,new Pen(track,stroke),center,radius,radius);
         dc.DrawEllipse(null,new Pen(track,1),center,radius-18,radius-18);
-        if(Value is {} value && value>0)
+        double? shownValue=Value is null?null:AnimatedValue;
+        if(shownValue is {} value && value>0)
         {
             Brush color=value<=10?new SolidColorBrush(Color.FromRgb(255,106,112)):value<=25?new SolidColorBrush(Color.FromRgb(243,200,85)):Accent;
             var geometry=new StreamGeometry();
@@ -32,10 +60,10 @@ public sealed class Ring : FrameworkElement
             }
             geometry.Freeze();
             var pen=new Pen(color,stroke){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round};
-            dc.PushOpacity(.10);dc.DrawGeometry(null,new Pen(color,stroke+8),geometry);dc.Pop();
+            dc.PushOpacity(.10+PulseOpacity*.22);dc.DrawGeometry(null,new Pen(color,stroke+8),geometry);dc.Pop();
             dc.DrawGeometry(null,pen,geometry);
         }
-        Draw(dc,Value is {} n?$"{n:0.#}%":"--",Math.Min(40,ActualWidth*.22),(Brush)FindResource("Ink"),center.Y-36,true);
+        Draw(dc,shownValue is {} n?$"{n:0.#}%":"--",Math.Min(40,ActualWidth*.22),(Brush)FindResource("Ink"),center.Y-36,true);
         Draw(dc,"剩余额度",12,(Brush)FindResource("Muted"),center.Y+15,false);
     }
     void Draw(DrawingContext dc,string value,double size,Brush ink,double y,bool bold)

@@ -1,67 +1,69 @@
-# CodexQuotaWidget
+# CodexQuotaWidget / AI Control Center
 
-CodexQuotaWidget is a Windows tray widget for viewing the quota information exposed by the official local Codex App Server. It keeps its authentication and local data separate from Codex Desktop.
+Windows 11 x64 的 Codex 额度与任务小组件。当前正式版本 **1.13.9**。
 
-> **Development Status:** This project is currently under active development. The next release is planned to add a quota reset toggle, with multi-language support planned for a future update.
+[下载 Windows x64 程序](https://github.com/LZJ522423X/CodexQuotaWidget/releases/download/v1.13.9/CodexQuotaWidget-1.13.9-win-x64.zip) · [全部版本](https://github.com/LZJ522423X/CodexQuotaWidget/releases) · [更新记录](CHANGELOG.md)
 
-## Implemented features
+## 下载安装
 
-- Displays remaining 5-hour and weekly Codex quota in a tray widget.
-- Shows reset countdowns and local reset timestamps.
-- Shows additional server-provided quota windows, including GPT reserve when available.
-- Displays available reset credits and their expiry when the server provides them. This version never consumes reset credits.
-- Native Windows tray icon with show/hide, manual refresh, diagnostics, and exit commands.
-- Automatic refresh every 60, 120, or 300 seconds, with single-instance protection.
-- Persists window position, basic theme, accent color, a small quota cache, and settings using atomic writes.
-- Supports dark, light, and system themes. It also detects when Codex Desktop is unavailable and retains the latest data as stale.
-- Can use the official browser login flow to create a widget-specific Codex authentication profile.
+1. 下载 Release 中的 Windows x64 ZIP；可使用同一 Release 的 SHA256SUMS.txt 验证文件。
+2. 解压到固定、可写的本地文件夹，保留 executor、startup-watcher 子目录。
+3. 运行 CodexQuotaWidget.exe，通过设置中的官方登录入口为小组件建立独立账户授权。
+4. 从托盘打开主界面，切换额度胶囊、查看额度或管理本地任务。
 
-## Requirements
+发布包自带 .NET 10 运行时，无须安装 SDK。读取额度需要已安装的官方 OpenAI 签名 Codex CLI/Desktop 及可用账户；离线或证据不足显示未知/过期，不假装连接成功。
+本项目不是 OpenAI 官方产品；发布程序未进行商业代码签名，Windows 可能显示来源提示。
 
-- Windows 11 x64.
-- .NET 10 SDK `10.0.401` to build from source, or the self-contained Windows release to run it.
-- Official Codex Desktop / Codex CLI installed locally. The widget only accepts an Authenticode-signed `codex.exe` published by OpenAI.
-- A ChatGPT account authorized through the official browser flow on first use.
+## 当前具备的功能
 
-## Build
+- 五小时、每周额度、重置倒计时与本地时间；服务端提供时显示额外额度窗口及重置机会。
+- 重置机会仅在用户明确确认后调用官方接口，查看额度、刷新和检查更新不会消耗重置机会或发送模型任务。
+- 灵动岛式额度胶囊、主题及动画；上/左/右贴边收起，屏幕中间保持展示，游戏状态下保守隐藏。
+- 托盘、单实例、窗口位置和主题保存。
+- 独立的开机启动、跟随可信 Codex Desktop 启动、跟随其完整退出三个开关。Watcher 无 UI、不调用模型，支持重复启动周期。
+- 本地任务队列、状态与恢复提示；本地任务状态不冒充真实 AI 状态。
+- 高级页面可绑定项目与真实 Codex Session；状态证据不足保持 Unknown。
+- 同一个“检查更新”入口检查本体 Release 和已有可靠来源登记的 Skills；清楚区分有更新、最新、无法检查、来源不明。“更新 Skill”仅执行用户选中的已确认更新。
+- 任务范围、项目/请求/会话身份核验、持久化检查点及防重复机制；异常时保留进度并安全阻断。
 
-```powershell
-dotnet restore .\src\CodexQuotaWidget\CodexQuotaWidget.csproj --locked-mode
-dotnet build .\src\CodexQuotaWidget\CodexQuotaWidget.csproj -c Release --no-restore
-dotnet run --project .\tests\CodexQuotaWidget.Checks\CodexQuotaWidget.Checks.csproj -c Release --no-restore
-dotnet publish .\src\CodexQuotaWidget\CodexQuotaWidget.csproj -c Release -r win-x64 --self-contained true -o .\artifacts\CodexQuotaWidget-win-x64
-```
+## 重要限制与安全边界
 
-## Use
-
-Run `CodexQuotaWidget.exe`. The tray icon remains available after the panel is hidden.
-
-1. Open the panel from the tray icon and expand its settings.
-2. Select **Login / Rebind independent account** and complete the official browser flow yourself when first prompted.
-3. Use **Locate official codex.exe** only if automatic discovery cannot find the locally installed official CLI.
-
-The executable also supports read-only diagnostics:
+**GPT ↔ Codex 无人值守自动循环尚未完成真实端到端验收，不是本版可承诺的生产能力。** Legacy Desktop 可能只返回引用，SIWC 正文读取仍有未解决协议问题；连接成功和 HTTP 200 不代表取得完整正文。
+SIWC 账户/模型验收属于单独编译的实验模式，正式包默认关闭，不自动登录、发送模型请求或切换付费 API。
+高级工作流、Session 持久化及安全收尾保留现有 D 盘安全限制；默认 `%LOCALAPPDATA%\CodexQuotaWidget` 可使用基础界面、额度和本地队列。需要高级功能时，可显式指定安全的 D 盘数据目录：
 
 ```powershell
-.\CodexQuotaWidget.exe --check
-.\CodexQuotaWidget.exe --once
-.\CodexQuotaWidget.exe --once --codex-path "C:\path\to\official\codex.exe"
+.\CodexQuotaWidget.exe --data-dir "D:\AIControlCenterData"
 ```
 
-`--check` and `--once` use the same read-only account and rate-limit requests as the widget. They do not spend reset credits or send model requests.
+此示例目录不是对某台电脑源码位置的依赖。项目必须由用户明确选择，不会回退到开发者项目或测试项目。
+正常启动不会恢复或派发历史任务，不会自动关机、关闭用户程序或改代理。
+安全收尾与 Executor 是显式启用的高级功能，仍需真实额度耗尽和同项目任务停止等独立证据，Unknown 不能授权执行。
+本次发布未执行真实电源/关闭程序测试，也未重新调用模型验收。
 
-## Local data and privacy
+Skills 更新依赖可选的本地更新适配器和经过核验的来源登记，不会在首次运行时自动安装它们。未配置时显示无法检查；系统/插件管理、自建及来源不明 Skill 不会被自动覆盖。适配器源码见 [tools/SkillUpdater](tools/SkillUpdater/README.md)。没有其他工具的通用自动更新适配。
+本体更新只提供可信 Release 下载入口，不自动覆盖正在运行的程序。
 
-By default, the widget keeps its data under `%LOCALAPPDATA%\CodexQuotaWidget`, with its independent Codex home at `%LOCALAPPDATA%\CodexQuotaWidget\codex-home`. It does not read, copy, or modify Codex Desktop's own authentication directory.
+## 数据与隐私
 
-For a portable or managed deployment, set `CODEX_QUOTA_WIDGET_DATA` to choose a different data directory. Set `CODEX_QUOTA_WIDGET_CLI` to give a previously verified official CLI path. Neither value needs to be stored in source control.
+默认数据目录为 `%LOCALAPPDATA%\CodexQuotaWidget`，独立认证目录为其 codex-home 子目录。可通过 `--data-dir` 或 `CODEX_QUOTA_WIDGET_DATA` 指定自己的目录。
+不复制 Codex Desktop 或 ChatGPT Desktop 的登录令牌，不将凭据写入源码、普通诊断或 Release。用户数据、旧任务与历史请求不随发布包分发。
+无需管理员权限；启动项只管理本产品当前用户级快捷方式。不要从临时解压目录开启自启动，迁移到另一个文件夹前请先在旧版本关闭本产品启动项，再在新位置重新启用。
+诊断 `--check` / `--once` 只读取官方账户/额度；`--startup-smoke-check --data-dir <独立目录>` 为离线启动冒烟测试，不访问账户、不注册启动项、不启动工作流。
 
-The app deliberately accepts only four App Server methods: `initialize`, `account/read`, `account/rateLimits/read`, and `account/login/start`. It rejects reset, model, and other write-capable methods. Logs contain only fixed event identifiers and integer error codes; they do not record tokens, cookies, email addresses, login URLs, or raw App Server responses. Logs are capped at seven days and approximately 2 MB.
+## 从源码构建
 
-## Current status and roadmap
+需要 Windows 11 x64 与 .NET SDK 10.0.401。代码不包含用户的运行配置、登录状态或 Skills 来源登记。
 
-Version `1.0.0` is the first Windows V1 release. It focuses on live quota visibility, tray operation, safe local persistence, and independent authentication. Historical charts, token activity, CSV export, advanced notifications, deep visual customization, MSI packaging, a reset toggle, and multi-language UI are not part of this release.
+```powershell
+dotnet build .\src\CodexQuotaWidget\CodexQuotaWidget.csproj -c Release
+dotnet run --project .\tests\CodexQuotaWidget.Checks\CodexQuotaWidget.Checks.csproj -c Release
+powershell -NoProfile -File .\scripts\publish.ps1
+```
 
-## Compatibility note
+发布脚本只构建和打包，不创建 GitHub Release、不上传、不调用模型。
+高级协议见 [工作流](docs/WORKFLOW-LOOP.md) 和 [事件接口](docs/EXTERNAL-AGENT-EVENTS.md)。
 
-Codex App Server is an evolving local interface. The widget validates required response fields, retains unknown quota windows when possible, and reports protocol errors instead of guessing. It is not an official OpenAI product and is not affiliated with or endorsed by OpenAI.
+## 许可证
+
+MIT，见 [LICENSE](LICENSE)；第三方运行时和界面动效参考见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
